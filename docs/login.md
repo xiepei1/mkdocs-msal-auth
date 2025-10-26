@@ -3,7 +3,7 @@
 <div class="login-container">
   <h2>Login Required</h2>
   <p>This documentation requires authentication. Please log in with your Google account.</p>
-  
+
   <button class="md-button md-button--primary" onclick="loginWithGoogle()">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="vertical-align: middle; margin-right: 8px;">
       <path fill="#EA4335" d="M12 5.04c2.17 0 4.1.89 5.51 2.31l4.15-4.09C19.26 1.03 15.89-.01 12 0 7.28.01 3.19 2.7.96 6.6l4.81 3.74C7.07 7.04 9.39 5.04 12 5.04z"></path>
@@ -24,7 +24,7 @@
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   }
-  
+
   .md-button--primary {
     display: inline-flex;
     align-items: center;
@@ -37,7 +37,7 @@
     cursor: pointer;
     transition: background-color 0.3s, box-shadow 0.3s;
   }
-  
+
   .md-button--primary:hover {
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   }
