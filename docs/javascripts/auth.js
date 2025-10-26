@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function checkAuth() {
   // Check if there's a token in localStorage
-  const token = localStorage.getItem('mkdocs_google_auth_token');
+  const token = localStorage.getItem('mkdocs_msal_auth_token');
 
   if (!token) {
     // If no token is found, redirect to login page if not already there
@@ -26,7 +26,7 @@ function checkAuth() {
       .then(response => {
         if (!response.ok) {
           // Token is invalid or expired
-          localStorage.removeItem('mkdocs_google_auth_token');
+          localStorage.removeItem('mkdocs_msal_auth_token');
           redirectToLogin();
         }
       })
@@ -52,7 +52,7 @@ function loginWithGoogle() {
 
 function logout() {
   // Remove auth token and redirect to login
-  localStorage.removeItem('mkdocs_google_auth_token');
+  localStorage.removeItem('mkdocs_msal_auth_token');
   redirectToLogin();
 }
 

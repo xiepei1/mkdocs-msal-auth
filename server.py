@@ -1,143 +1,241 @@
 #!/usr/bin/env python3
-# Server implementation for Google OAuth with MkDocs
+"""Server implementation using MSAL (Azure AD) for MkDocs SSO.
+
+This replaces the previous Google OAuth implementation. Environment variables
+CLIENT_ID, CLIENT_SECRET, TENANT_ID, and AUTHORITY (optional) are read via
+python-dotenv or the environment at runtime.
+"""
 
 import os
-import json
 import logging
 from pathlib import Path
 from functools import wraps
 
-from flask import Flask, redirect, request, session, url_for, jsonify, send_from_directory
-from flask_dance.contrib.google import make_google_blueprint, google
+from flask import (
+    Flask,
+    redirect,
+    request,
+    session,
+    url_for,
+    jsonify,
+    send_from_directory,
+)
+
 from werkzeug.middleware.proxy_fix import ProxyFix
+from dotenv import load_dotenv
+import msal
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+import requests
+
+from mkdocs_msal_auth.auth import verify_signed_token
+
+# Load environment from .env if present
+load_dotenv()
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-# Configuration
+# App configuration
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
-app.config['GOOGLE_OAUTH_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
-app.config['GOOGLE_OAUTH_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
 
-# Auth configuration
+# MSAL / Azure AD configuration (passed in at runtime via environment)
+CLIENT_ID = os.environ.get('CLIENT_ID')
+CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
+TENANT_ID = os.environ.get('TENANT_ID')
+AUTHORITY = os.environ.get('AUTHORITY') or (f"https://login.microsoftonline.com/{TENANT_ID}" if TENANT_ID else None)
+
+# Auth config: defaults; may be overridden by mkdocs.yml extra.auth
 AUTH_ENABLED = True
-ALLOWED_DOMAINS = ['gmail.com']  # Example domain restriction
-ALLOWED_EMAILS = []  # Specific emails to allow
+ALLOWED_DOMAINS = ['gmail.com']
+ALLOWED_EMAILS = []
 
-# Load configuration from mkdocs.yml if available
+# Attempt to read mkdocs.yml for extra auth config
 try:
     import yaml
+
     with open('mkdocs.yml', 'r') as f:
         mkdocs_config = yaml.safe_load(f)
         auth_config = mkdocs_config.get('extra', {}).get('auth', {})
-        
+
         if auth_config:
             AUTH_ENABLED = auth_config.get('enabled', True)
             ALLOWED_DOMAINS = auth_config.get('allowed_domains', ALLOWED_DOMAINS)
             ALLOWED_EMAILS = auth_config.get('allowed_emails', ALLOWED_EMAILS)
-except Exception as e:
-    print(f"Could not load mkdocs.yml: {e}")
+except Exception:
+    # Non-fatal; keep defaults
+    pass
 
-# Set up Google OAuth blueprint
-google_bp = make_google_blueprint(
-    client_id=app.config['GOOGLE_OAUTH_CLIENT_ID'],
-    client_secret=app.config['GOOGLE_OAUTH_CLIENT_SECRET'],
-    scope=["profile", "email"],
-    redirect_url="/auth/google/callback"
-)
-app.register_blueprint(google_bp, url_prefix="/auth")
+# Create MSAL confidential client application when config is present
+CLIENT_APP = None
+if CLIENT_ID and CLIENT_SECRET and AUTHORITY:
+    CLIENT_APP = msal.ConfidentialClientApplication(
+        client_id=CLIENT_ID,
+        client_credential=CLIENT_SECRET,
+        authority=AUTHORITY,
+    )
+else:
+    app.logger.warning('MSAL not fully configured. Set CLIENT_ID, CLIENT_SECRET, and TENANT_ID/AUTHORITY.')
 
-# Authentication routes
-@app.route('/auth/google')
+# Paths exempt from authentication when serving the built site
+AUTH_PATHS_EXEMPT = ['/login/', '/auth/', '/assets/', '/javascripts/', '/stylesheets/']
+
+# Scopes requested from Microsoft Identity platform
+SCOPES = ['User.Read', 'openid', 'profile', 'email']
+
+
+@app.route('/auth/login')
 def login():
-    return redirect(url_for('google.login'))
+    """Start the authorization flow by redirecting the user to Azure AD.
 
-@app.route('/auth/google/callback')
-def google_callback():
-    if not google.authorized:
-        return redirect(url_for('google.login'))
-    
-    resp = google.get('/oauth2/v2/userinfo')
-    if resp.ok:
-        user_info = resp.json()
-        email = user_info.get('email')
-        
-        # Check domain restrictions
-        if email:
-            domain = email.split('@')[-1]
-            if (not ALLOWED_DOMAINS or domain in ALLOWED_DOMAINS) or \
-               (not ALLOWED_EMAILS or email in ALLOWED_EMAILS):
-                # Generate token (in a real implementation, use JWT or similar)
-                token = generate_token(user_info)
-                
-                # Return HTML that sets the token in localStorage and redirects
-                return f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Authentication Successful</title>
-                    <script>
-                        localStorage.setItem('mkdocs_google_auth_token', '{token}');
-                        const redirect = localStorage.getItem('mkdocs_auth_redirect') || '/';
-                        window.location.href = redirect;
-                    </script>
-                </head>
-                <body>
-                    <h1>Authentication Successful</h1>
-                    <p>Redirecting...</p>
-                </body>
-                </html>
-                """
-    
-    # Auth failed
+    This builds an authorization URL using MSAL and redirects the browser.
+    """
+    if not CLIENT_APP:
+        return ("Authentication is not configured on the server."), 500
+
+    redirect_uri = url_for('authorized', _external=True)
+    auth_url = CLIENT_APP.get_authorization_request_url(scopes=SCOPES, redirect_uri=redirect_uri)
+    return redirect(auth_url)
+
+
+@app.route('/auth/authorized')
+def authorized():
+    """Callback endpoint for Azure AD to redirect to with authorization code."""
+    if not CLIENT_APP:
+        return ("Authentication is not configured on the server."), 500
+
+    error = request.args.get('error')
+    if error:
+        return redirect(f"/login?error={error}")
+
+    code = request.args.get('code')
+    if not code:
+        return redirect('/login?error=no_code')
+
+    redirect_uri = url_for('authorized', _external=True)
+    result = CLIENT_APP.acquire_token_by_authorization_code(code, scopes=SCOPES, redirect_uri=redirect_uri)
+
+    if 'access_token' in result:
+        # Try to extract a user identifier from the id token claims
+        claims = result.get('id_token_claims', {})
+        email = claims.get('email') or claims.get('preferred_username') or claims.get('upn')
+
+        # Fallback: attempt to call Graph for user profile
+        if not email:
+            try:
+                graph_resp = requests.get(
+                    'https://graph.microsoft.com/v1.0/me',
+                    headers={'Authorization': f"Bearer {result['access_token']}"},
+                    timeout=5,
+                )
+                if graph_resp.ok:
+                    graph_data = graph_resp.json()
+                    email = graph_data.get('mail') or graph_data.get('userPrincipalName')
+            except Exception:
+                pass
+
+        if not email:
+            return redirect('/login?error=no_email')
+
+        # domain/email checks
+        domain = email.split('@')[-1]
+        allowed_domain_ok = (not ALLOWED_DOMAINS) or (domain in ALLOWED_DOMAINS)
+        allowed_email_ok = (not ALLOWED_EMAILS) or (email in ALLOWED_EMAILS)
+
+        if allowed_domain_ok or allowed_email_ok:
+            # Create a signed token that the front-end stores; server can validate later
+            s = URLSafeTimedSerializer(app.secret_key, salt='mkdocs-google-auth')
+            token = s.dumps({'email': email})
+
+            # Return HTML that sets the token in localStorage and redirects
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Authentication Successful</title>
+                <script>
+                    localStorage.setItem('mkdocs_msal_auth_token', '{token}');
+                    const redirect = localStorage.getItem('mkdocs_auth_redirect') || '/';
+                    window.location.href = redirect;
+                </script>
+            </head>
+            <body>
+                <h1>Authentication Successful</h1>
+                <p>Redirecting...</p>
+            </body>
+            </html>
+            """
+
+    # Authentication failed
     return redirect('/login?error=unauthorized')
+
 
 @app.route('/auth/verify', methods=['POST'])
 def verify_token():
+    """Verify a token previously issued by this server.
+
+    This uses server-side signing (itsdangerous) so verification is fast and
+    does not require introspecting Azure AD tokens on each request.
+    """
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     token = auth_header.split(' ')[1]
-    # Verify token (implement your verification logic here)
-    # For a simple example, you could have a list of valid tokens
-    
-    return jsonify({'valid': True})
+    s = URLSafeTimedSerializer(app.secret_key, salt='mkdocs-google-auth')
+    try:
+        max_age = int(os.environ.get('TOKEN_EXPIRES_SECONDS', 3600))
+        data = s.loads(token, max_age=max_age)
+    except SignatureExpired:
+        return jsonify({'error': 'Token expired'}), 401
+    except BadSignature:
+        return jsonify({'error': 'Invalid token'}), 401
+
+    # Optionally, additional checks could be done here
+    return jsonify({'valid': True, 'email': data.get('email')})
+
 
 @app.route('/auth/logout')
 def logout():
     session.clear()
     return redirect('/login')
 
+
 # Serve the built mkdocs site
 @app.route('/', defaults={'path': 'index.html'})
 @app.route('/<path:path>')
 def serve_site(path):
-    # For simplicity in this example, we'll assume the site is built in 'site' directory
     site_dir = Path('site')
-    
-    # If the path doesn't exist, try adding .html or /index.html
+    # Authentication guard for site content
+    from flask import request, redirect
+
+    request_path = request.path
+    for exempt in AUTH_PATHS_EXEMPT:
+        if request_path.startswith(exempt):
+            break
+    else:
+        # Not exempt: verify Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return redirect('/auth/login')
+
+        token = auth_header.split(' ', 1)[1]
+        try:
+            verify_signed_token(token)
+        except SignatureExpired:
+            return redirect('/auth/login?error=token_expired')
+        except BadSignature:
+            return redirect('/auth/login?error=invalid_token')
+
     requested_path = site_dir / path
     if not requested_path.exists():
         if (site_dir / f"{path}.html").exists():
             path = f"{path}.html"
         elif (site_dir / path / "index.html").exists():
             path = f"{path}/index.html"
-    
+
     return send_from_directory('site', path)
 
-# Helper functions
-def generate_token(user_info):
-    """Generate a simple token for demonstration purposes.
-    In production, use a proper JWT or similar authentication approach."""
-    import hashlib
-    import time
-    
-    # This is NOT secure for production, just for demo purposes
-    token_data = f"{user_info['email']}:{time.time()}:{app.secret_key}"
-    return hashlib.sha256(token_data.encode()).hexdigest()
 
 if __name__ == '__main__':
-    # Use environment variable PORT if available (for PaaS deployments)
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)

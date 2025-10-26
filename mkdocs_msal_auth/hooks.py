@@ -5,6 +5,8 @@ import json
 import logging
 from pathlib import Path
 from functools import wraps
+from itsdangerous import SignatureExpired, BadSignature
+from mkdocs_msal_auth.auth import verify_signed_token
 
 logger = logging.getLogger('mkdocs.plugins')
 
@@ -27,13 +29,13 @@ def on_pre_build(config, **kwargs):
     if not AUTH_ENABLED:
         logger.warning("Authentication is disabled in configuration")
 
-    # Check for environment variables
-    client_id = os.environ.get('GOOGLE_CLIENT_ID')
-    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+    # Check for environment variables (MSAL/Azure AD)
+    client_id = os.environ.get('CLIENT_ID')
+    client_secret = os.environ.get('CLIENT_SECRET')
 
     if AUTH_ENABLED and (not client_id or not client_secret):
-        logger.warning("Google OAuth credentials not found in environment variables.")
-        logger.warning("Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.")
+        logger.warning("MSAL/Azure AD credentials not found in environment variables.")
+        logger.warning("Set CLIENT_ID and CLIENT_SECRET (and TENANT_ID or AUTHORITY) environment variables.")
 
     return config
 
@@ -81,8 +83,17 @@ def check_auth(func):
             return redirect('/login/')
 
         token = auth_header.split(' ')[1]
-        # Verify token (implementation depends on how you store and validate tokens)
+        # Verify token using shared helper
+        try:
+            data = verify_signed_token(token)
+        except SignatureExpired:
+            # Token expired -> redirect to login
+            return redirect('/login/?error=token_expired')
+        except BadSignature:
+            # Invalid token
+            return redirect('/login/?error=invalid_token')
 
+        # Optionally, you can attach user info to the request context here if needed
         return func(*args, **kwargs)
 
     return decorated_function
