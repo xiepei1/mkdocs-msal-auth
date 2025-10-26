@@ -19,11 +19,11 @@ theme:
 plugins:
   - search
   - macros
-  - simple:
+  - mkdocs-simple-hooks:
       hooks:
-        - mkdocs_google_auth.hooks.on_page_markdown
-        - mkdocs_google_auth.hooks.on_pre_build
-        - mkdocs_google_auth.hooks.on_pre_template
+        on_page_markdown: mkdocs_google_auth.hooks.on_page_markdown
+        on_pre_build: mkdocs_google_auth.hooks.on_pre_build
+        on_pre_template: mkdocs_google_auth.hooks.on_pre_template
 
 extra_javascript:
   - javascripts/auth.js
