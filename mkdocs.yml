@@ -1,5 +1,5 @@
-site_name: MkDocs with Google Authentication
-site_description: A MkDocs site with Google Authentication
+site_name: MkDocs with Entra ID Authentication
+site_description: MkDocs static docs served by Flask with Microsoft Entra ID access control
 site_author: Your Name
 
 theme:
@@ -21,16 +21,9 @@ plugins:
   - macros
   - mkdocs-simple-hooks:
       hooks:
-        on_page_markdown: "mkdocs_msal_auth.hooks:on_page_markdown"
-        on_pre_build: "mkdocs_msal_auth.hooks:on_pre_build"
-        on_pre_template: "mkdocs_msal_auth.hooks:on_pre_template"
+        on_page_markdown: "src.mkdocs_msal_auth.hooks:on_page_markdown"
+        on_pre_build: "src.mkdocs_msal_auth.hooks:on_pre_build"
+        on_pre_template: "src.mkdocs_msal_auth.hooks:on_pre_template"
 
 extra:
   generator: false
-  auth:
-    enabled: true
-    allowed_domains:
-      - gmail.com
-      # Add more domains as needed
-    allowed_emails:
-      # Add specific emails here

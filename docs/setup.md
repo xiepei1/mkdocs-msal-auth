@@ -2,64 +2,80 @@
 
 ## Prerequisites
 
-- Python 3.7+
+- Python 3.9+
 - MkDocs
 - MkDocs Material theme
-- Google Cloud Platform account
+- Microsoft Entra tenant (Azure AD)
 
 ## Installation
 
 1. Install required packages:
 
 ```bash
-pip install mkdocs mkdocs-material mkdocs-macros-plugin mkdocs-simple-hooks flask-dance
+pip install -r requirements.txt
+```
+
+Optional for editable local development:
+
+```bash
+pip install -e .
 ```
 
 2. Clone this repository:
 
 ```bash
-git clone https://github.com/yourusername/mkdocs-google-auth.git
-cd mkdocs-google-auth
+git clone https://github.com/yourusername/mkdocs-msal-auth.git
+cd mkdocs-msal-auth
 ```
 
-## Google OAuth Setup
+## Microsoft Entra ID Setup
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Navigate to APIs & Services > Credentials
-4. Click "Create Credentials" and select "OAuth client ID"
-5. Configure the OAuth consent screen:
-   - Add your app name
-   - Add your domain
-   - Add the scopes for email and profile
-6. Create OAuth client ID:
-   - Application type: Web application
-   - Name: MkDocs Auth
-   - Authorized JavaScript origins: Your site URL (e.g., `https://yourdocs.example.com`)
-   - Authorized redirect URIs: Your site URL + `/auth/google/callback` (e.g., `https://yourdocs.example.com/auth/google/callback`)
-7. Note down your Client ID and Client Secret
+1. Open [Microsoft Entra admin center](https://entra.microsoft.com/).
+2. Register a new application.
+3. In Authentication, add a Web redirect URI:
+  - Local: `http://localhost:5000/auth/authorized`
+  - Production: `https://yourdocs.example.com/auth/authorized`
+4. In Certificates & secrets, create a client secret.
+5. In API permissions, add delegated permission `User.Read` for Microsoft Graph.
+6. Capture these values:
+  - Application (client) ID
+  - Directory (tenant) ID
+  - Client secret
 
 ## Configuration
 
-1. Create environment variables for your Google OAuth credentials:
+1. Create environment variables for Entra credentials:
 
 ```bash
-export GOOGLE_CLIENT_ID="your_client_id"
-export GOOGLE_CLIENT_SECRET="your_client_secret"
-export SECRET_KEY="random_secure_secret_key"
+cp .env.example .env
 ```
 
-2. Update `mkdocs.yml` with your authentication settings:
+Example `.env` values:
+
+```env
+CLIENT_ID=your-client-id
+CLIENT_SECRET=your-client-secret
+TENANT_ID=your-tenant-id
+SECRET_KEY=random_secure_secret_key
+```
+
+2. `mkdocs.yml` does not need an `extra.auth` section for MSAL authentication to work. If omitted, the app defaults to enabled auth with no domain or email restrictions.
+
+Add `extra.auth` only if you want to override that behavior:
 
 ```yaml
 extra:
   auth:
     enabled: true
-    allowed_domains:
-      - yourdomain.com
-    allowed_emails:
-      - specific.user@gmail.com
+    allowed_domains: []
+    allowed_emails: []
 ```
+
+Notes:
+
+- Omitting `extra.auth` entirely is valid.
+- Leave both lists empty to allow any authenticated Entra account.
+- Populate one or both lists to enforce allow-lists.
 
 ## Deployment
 
@@ -71,14 +87,16 @@ The repository includes a Dockerfile for easy containerization:
 
 ```bash
 # Build the Docker image
-docker build -t mkdocs-google-auth .
+docker build -t mkdocs-msal-auth .
 
 # Run the container
 docker run -p 5000:5000 \
-  -e GOOGLE_CLIENT_ID="your_client_id" \
-  -e GOOGLE_CLIENT_SECRET="your_client_secret" \
-  -e SECRET_KEY="your_secret_key" \
-  mkdocs-google-auth
+  -e CLIENT_ID="your-client-id" \
+  -e CLIENT_SECRET="your-client-secret" \
+  -e TENANT_ID="your-tenant-id" \
+  -e SECRET_KEY="your-secret-key" \
+  -e SESSION_COOKIE_SECURE=true \
+  mkdocs-msal-auth
 ```
 
 ### 2. Deploy to Heroku
@@ -86,9 +104,10 @@ docker run -p 5000:5000 \
 ```bash
 # Install Heroku CLI
 heroku create your-mkdocs-site
-heroku config:set GOOGLE_CLIENT_ID="your_client_id"
-heroku config:set GOOGLE_CLIENT_SECRET="your_client_secret"
-heroku config:set SECRET_KEY="your_secret_key"
+heroku config:set CLIENT_ID="your-client-id"
+heroku config:set CLIENT_SECRET="your-client-secret"
+heroku config:set TENANT_ID="your-tenant-id"
+heroku config:set SECRET_KEY="your-secret-key"
 git push heroku master
 ```
 
@@ -108,8 +127,17 @@ For local development, you can run:
 # Build the MkDocs site
 mkdocs build
 
+# Optional sanity check for env config
+python scripts/smoke_token.py
+
 # Run the server
-python server.py
+python -m src.webapp.server
 ```
 
 The server will run on http://localhost:5000 by default.
+
+For production, use Gunicorn:
+
+```bash
+gunicorn --bind 0.0.0.0:5000 --workers 3 wsgi:app
+```

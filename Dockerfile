@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -12,8 +12,8 @@ COPY . .
 # Build the MkDocs site
 RUN mkdocs build
 
-# Expose port for the Flask app
+# Expose port for the WSGI app
 EXPOSE 5000
 
-# Run the server
-CMD ["python", "server.py"]
+# Run the server using a production-grade WSGI server
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "wsgi:app"]

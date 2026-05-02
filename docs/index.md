@@ -1,55 +1,39 @@
-# Welcome to MkDocs with Google Authentication
+# Welcome
 
-This is a sample MkDocs site that integrates Google Authentication.
+This site demonstrates a documentation platform built with three components:
 
-## Features
+1. MkDocs generates static documentation pages.
+2. Flask hosts the generated HTML under the `site/` directory.
+3. Microsoft Entra ID (via MSAL) authenticates users before access is granted.
 
-- Secure documentation with Google OAuth
-- Restrict access to specific domains
-- Restrict access to specific email addresses
-- Simple integration with MkDocs
+## What You Get
 
-## Getting Started
+- Familiar MkDocs authoring workflow
+- Simple Flask hosting model for static output
+- Enterprise sign-in with Microsoft identity platform
+- Optional allow-lists for domains and individual email accounts
 
-To get started, you need to:
+## Request Flow
 
-1. Set up your Google OAuth credentials
-2. Configure the `mkdocs.yml` file
-3. Deploy your site
+1. User requests a docs page.
+2. Flask checks whether the user already has a valid session.
+3. If not authenticated, user is redirected to `/auth/login`.
+4. Entra ID completes login and redirects to `/auth/authorized`.
+5. Flask validates identity and stores user email in session.
+6. Flask serves the requested static page from `site/`.
 
-See the [Setup](setup.md) page for detailed instructions.
+## Configuration Summary
 
-## How It Works
+Authentication behavior can be customized via `mkdocs.yml`, but the `extra.auth` section is optional. When omitted, the app still authenticates through Microsoft Entra ID with default settings.
 
-This integration uses Flask and Flask-Dance to handle Google OAuth authentication. The authentication flow works as follows:
-
-1. When a user visits any page, the client-side JavaScript checks if they have a valid token
-2. If no valid token is found, they are redirected to the login page
-3. When they click "Sign in with Google", they are redirected to Google's OAuth consent screen
-4. After successful authentication, Google redirects back to our callback URL
-5. We verify the user's email domain and create a token
-6. The token is stored in the browser's localStorage
-7. The user is redirected to the page they originally requested
-
-## Adding a Logout Button
-
-You can add a logout button to your MkDocs site by adding the following HTML to your Markdown files:
-
-```html
-<button onclick="logout()" class="md-button">Logout</button>
-```
-
-## Configuration Options
-
-In your `mkdocs.yml` file, you can configure the authentication settings:
+Optional override example:
 
 ```yaml
 extra:
   auth:
-    enabled: true  # Set to false to disable authentication
-    allowed_domains:
-      - yourdomain.com
-      - example.com
-    allowed_emails:
-      - specific.user@gmail.com
+    enabled: true
+    allowed_domains: []
+    allowed_emails: []
 ```
+
+See [Setup](setup.md) for complete installation and Microsoft Entra registration details.

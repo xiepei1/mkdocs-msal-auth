@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mkdocs-msal-auth"
+version = "0.1.0"
+description = "MkDocs static docs hosted by Flask with Microsoft Entra ID authentication."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "flask",
+  "gunicorn",
+  "mkdocs",
+  "mkdocs-macros-plugin",
+  "mkdocs-material",
+  "mkdocs-simple-hooks",
+  "msal",
+  "python-dotenv",
+  "pyyaml",
+  "requests",
+]
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["D", "E", "F", "I", "W"]
+ignore = ["D104"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

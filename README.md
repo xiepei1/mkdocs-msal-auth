@@ -1,71 +1,148 @@
-# MkDocs Google Authentication
+# MkDocs + Flask + Microsoft Entra ID Authentication
 
-This project integrates Google OAuth authentication with MkDocs, allowing you to secure your documentation site with Google login.
+This project builds documentation with MkDocs, serves the generated static site through Flask, and enforces authentication with Microsoft Entra ID (Azure AD) using MSAL for Python.
+
+## Architecture
+
+1. MkDocs builds static HTML into the `site/` folder.
+2. Flask serves files from `site/`.
+3. Unauthenticated users are redirected to Microsoft Entra ID login.
+4. After successful sign-in, Flask stores the user identity in a secure session.
+5. Optionally restrict access by email domain and/or specific email addresses.
 
 ## Features
 
-- Secure documentation with Google OAuth
-- Restrict access to specific domains
-- Restrict access to specific email addresses
-- Simple integration with MkDocs
+- Documentation generation with MkDocs Material
+- Flask server for hosting generated HTML
+- Microsoft Entra ID OAuth2 authorization code flow via MSAL
+- Access control using `allowed_domains` and `allowed_emails`
+- Runtime configuration from environment variables (`.env` for local development)
 
 ## Quick Start
 
-1. Clone this repository
-2. Install the requirements: `pip install -r requirements.txt`
-3. Set up your Google OAuth credentials in the Google Cloud Console
-4. Set environment variables for your credentials:
-   ```
-   export GOOGLE_CLIENT_ID="your_client_id"
-   export GOOGLE_CLIENT_SECRET="your_client_secret"
-   export SECRET_KEY="your_secret_key"
-   ```
-5. Build the MkDocs site: `mkdocs build`
-6. Run the server: `python server.py`
+1. Install dependencies:
 
-## Configuration
+```bash
+pip install -r requirements.txt
+```
 
-Edit the `mkdocs.yml` file to configure authentication:
+Optional for local development with the `src` layout:
+
+```bash
+pip install -e .
+```
+
+2. Copy environment template and fill values:
+
+```bash
+cp .env.example .env
+```
+
+3. Build docs:
+
+```bash
+mkdocs build
+```
+
+4. Start local server:
+
+```bash
+python -m src.webapp.server
+```
+
+5. Open `http://localhost:5000`.
+
+## Production Run (WSGI)
+
+Use Gunicorn with the WSGI entrypoint:
+
+```bash
+gunicorn --bind 0.0.0.0:5000 --workers 3 wsgi:app
+```
+
+Optional hardening:
+
+- Set `SESSION_COOKIE_SECURE=true` when serving over HTTPS.
+- Always set a strong `SECRET_KEY`.
+
+## Required Environment Variables
+
+- `CLIENT_ID`: Entra application (client) ID
+- `CLIENT_SECRET`: Entra client secret
+- `TENANT_ID`: Entra tenant ID
+- `AUTHORITY` (optional): overrides default `https://login.microsoftonline.com/<TENANT_ID>`
+- `SECRET_KEY`: Flask session signing key
+
+## Entra App Registration
+
+In Microsoft Entra admin center:
+
+1. Register an application.
+2. Add a Web redirect URI: `http://localhost:5000/auth/authorized` (or your production URL).
+3. Create a client secret.
+4. Grant delegated permission `User.Read` (Microsoft Graph).
+
+## Auth Policy Configuration
+
+`extra.auth` in `mkdocs.yml` is optional. If it is omitted entirely, the app still works with these defaults:
+
+- authentication enabled
+- no domain allow-list
+- no email allow-list
+
+Add this section only when you want to override the defaults:
 
 ```yaml
 extra:
   auth:
     enabled: true
-    allowed_domains:
-      - yourdomain.com
-    allowed_emails:
-      - specific.user@gmail.com
+    allowed_domains: []
+    allowed_emails: []
 ```
 
-## Deployment
+Behavior:
 
-See the `.github/workflows/deploy.yml` file for an example GitHub Actions workflow for deployment.
+- If `extra.auth` is missing, MSAL authentication still applies with default behavior.
+- If both lists are empty, any successfully authenticated Entra user is allowed.
+- If either list is populated, user must match one of the configured domains or emails.
 
-## Authentication (MSAL / Azure AD)
+## Docker
 
-This project was migrated from a Google OAuth implementation to use MSAL (Azure AD)
-for SSO. The server issues short-lived signed tokens that are stored by the browser
-in localStorage and sent as a Bearer token to the server for verification.
-
-For local development copy `.env.example` to `.env` and populate the values:
-
+```bash
+docker build -t mkdocs-msal-auth .
+docker run -p 5000:5000 \
+  -e CLIENT_ID="your-client-id" \
+  -e CLIENT_SECRET="your-client-secret" \
+  -e TENANT_ID="your-tenant-id" \
+  -e SECRET_KEY="your-secret-key" \
+  -e SESSION_COOKIE_SECURE=true \
+  mkdocs-msal-auth
 ```
-CLIENT_ID=your-client-id
-CLIENT_SECRET=your-client-secret
-TENANT_ID=your-tenant-id
-SECRET_KEY=a-very-secret-key
-```
 
-To run a quick smoke verification of the token helpers:
+## Smoke Check
+
+Run:
 
 ```bash
 python3 scripts/smoke_token.py
 ```
 
-If you'd prefer token validation against Azure AD (JWT validation using JWKS),
-I can add that alternative flow; currently the server uses itsdangerous-signed
-tokens for fast server-side verification without needing to validate external
-JWTs on every request.
+This verifies required Entra-related environment variables are present and prints the resolved authority.
+
+## Linting
+
+Ruff is configured in `pyproject.toml`. Run lint checks for this repository with:
+
+```bash
+ruff check .
+```
+
+## Source Layout
+
+- `src/webapp/server.py`: Flask application and Entra authentication flow
+- `src/mkdocs_msal_auth/`: MkDocs hook package
+- `wsgi.py`: production WSGI entrypoint
+- `pyproject.toml`: project metadata plus Ruff and Google-style docstring settings
 
 ## License
 
