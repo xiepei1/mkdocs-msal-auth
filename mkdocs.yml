@@ -25,9 +25,6 @@ plugins:
         on_pre_build: "mkdocs_msal_auth.hooks:on_pre_build"
         on_pre_template: "mkdocs_msal_auth.hooks:on_pre_template"
 
-extra_javascript:
-  - javascripts/auth.js
-
 extra:
   generator: false
   auth:

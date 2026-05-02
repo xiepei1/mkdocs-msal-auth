@@ -24,10 +24,7 @@ from flask import (
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 import msal
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import requests
-
-from mkdocs_msal_auth.auth import verify_signed_token
 
 # Load environment from .env if present
 load_dotenv()
@@ -142,28 +139,11 @@ def authorized():
         allowed_email_ok = (not ALLOWED_EMAILS) or (email in ALLOWED_EMAILS)
 
         if allowed_domain_ok or allowed_email_ok:
-            # Create a signed token that the front-end stores; server can validate later
-            s = URLSafeTimedSerializer(app.secret_key, salt='mkdocs-google-auth')
-            token = s.dumps({'email': email})
-
-            # Return HTML that sets the token in localStorage and redirects
-            return f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Authentication Successful</title>
-                <script>
-                    localStorage.setItem('mkdocs_msal_auth_token', '{token}');
-                    const redirect = localStorage.getItem('mkdocs_auth_redirect') || '/';
-                    window.location.href = redirect;
-                </script>
-            </head>
-            <body>
-                <h1>Authentication Successful</h1>
-                <p>Redirecting...</p>
-            </body>
-            </html>
-            """
+            # Set the user identifier in the secure Flask session
+            session['user'] = email
+            
+            # Redirect to the main site 
+            return redirect('/')
 
     # Authentication failed
     return redirect('/login?error=unauthorized')
@@ -171,27 +151,11 @@ def authorized():
 
 @app.route('/auth/verify', methods=['POST'])
 def verify_token():
-    """Verify a token previously issued by this server.
-
-    This uses server-side signing (itsdangerous) so verification is fast and
-    does not require introspecting Azure AD tokens on each request.
-    """
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    token = auth_header.split(' ')[1]
-    s = URLSafeTimedSerializer(app.secret_key, salt='mkdocs-google-auth')
-    try:
-        max_age = int(os.environ.get('TOKEN_EXPIRES_SECONDS', 3600))
-        data = s.loads(token, max_age=max_age)
-    except SignatureExpired:
-        return jsonify({'error': 'Token expired'}), 401
-    except BadSignature:
-        return jsonify({'error': 'Invalid token'}), 401
-
-    # Optionally, additional checks could be done here
-    return jsonify({'valid': True, 'email': data.get('email')})
+    """Endpoint for frontend JS to verify authentication status if needed."""
+    if 'user' in session:
+        return jsonify({'valid': True, 'email': session['user']})
+    
+    return jsonify({'valid': False, 'error': 'Unauthorized'}), 401
 
 
 @app.route('/auth/logout')
@@ -213,18 +177,9 @@ def serve_site(path):
         if request_path.startswith(exempt):
             break
     else:
-        # Not exempt: verify Authorization header
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
+        # Not exempt: check the Flask session
+        if 'user' not in session:
             return redirect('/auth/login')
-
-        token = auth_header.split(' ', 1)[1]
-        try:
-            verify_signed_token(token)
-        except SignatureExpired:
-            return redirect('/auth/login?error=token_expired')
-        except BadSignature:
-            return redirect('/auth/login?error=invalid_token')
 
     requested_path = site_dir / path
     if not requested_path.exists():

@@ -4,9 +4,9 @@ import re
 import json
 import logging
 from pathlib import Path
+import logging
+from pathlib import Path
 from functools import wraps
-from itsdangerous import SignatureExpired, BadSignature
-from mkdocs_msal_auth.auth import verify_signed_token
 
 logger = logging.getLogger('mkdocs.plugins')
 
@@ -65,7 +65,7 @@ def check_auth(func):
     @wraps(func)
     def decorated_function(*args, **kwargs):
         # Import here to avoid circular imports
-        from flask import request, redirect
+        from flask import request, redirect, session
 
         # Check if authentication is enabled
         if not AUTH_ENABLED:
@@ -77,21 +77,9 @@ def check_auth(func):
             if request_path.startswith(exempt_path):
                 return func(*args, **kwargs)
 
-        # Check for auth token
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
+        # Check for auth token in session
+        if 'user' not in session:
             return redirect('/login/')
-
-        token = auth_header.split(' ')[1]
-        # Verify token using shared helper
-        try:
-            data = verify_signed_token(token)
-        except SignatureExpired:
-            # Token expired -> redirect to login
-            return redirect('/login/?error=token_expired')
-        except BadSignature:
-            # Invalid token
-            return redirect('/login/?error=invalid_token')
 
         # Optionally, you can attach user info to the request context here if needed
         return func(*args, **kwargs)
