@@ -57,6 +57,85 @@ uv run python -m app.webapp.server
 
 5. Open `http://localhost:5000`.
 
+## Writing Documentation
+
+You write the content as Markdown files in `docs/`. MkDocs builds those files
+into static HTML in `site/`. The Flask server serves that HTML after it
+confirms the sign-in state. Every page under `docs/` belongs to the
+protected site.
+
+### Add a Page
+
+1. Create a Markdown file under `docs/`. The file `docs/guides/api.md` becomes the URL `/guides/api/`.
+2. Put one level-1 heading at the top of the file. The theme shows that heading as the page title.
+3. Link to other pages with paths that are relative to the current file. The link `[Setup](setup.md)` works from `docs/index.md`.
+4. Run `uv run mkdocs build` and read the output. Make sure that the build reports no errors.
+
+### Set the Menu Order
+
+`mkdocs.yml` has no `nav` key, so the Material theme builds the menu from the
+folder structure and the file names. When you want a fixed order and your own
+titles, add a `nav` key to `mkdocs.yml`:
+
+```yaml
+nav:
+  - Home: index.md
+  - Setup: setup.md
+  - Writing: writing.md
+```
+
+Paths in `nav` are relative to `docs/`. MkDocs builds pages that are absent
+from `nav` and lists them in the build log. Those pages stay reachable by
+URL.
+
+### Organize Pages in Folders
+
+A subfolder under `docs/` becomes one URL path segment. A page in
+`docs/guides/` gets a URL that starts with `/guides/`. Folder names become
+URL names. Use short names with hyphens, and avoid spaces and capital
+letters.
+
+### Add Images and Static Files
+
+Put images and other static files under `docs/assets/`. Link them with paths
+that are relative to the page file. The file `docs/assets/diagram.png` needs
+the link `assets/diagram.png` from `docs/index.md`. It needs the link
+`../assets/diagram.png` from `docs/guides/api.md`.
+
+Do not place private content under `/auth/`, `/login/`, `/assets/`,
+`/images/`, `/javascripts/`, or `/stylesheets/`. The server serves those
+path prefixes without a login step, so anyone can read that content.
+
+### Reuse Values with Macros
+
+The macros plugin is enabled. It replaces Jinja expressions in your Markdown
+with values at build time. Define a value under `extra` in `mkdocs.yml`:
+
+```yaml
+extra:
+  owner: Platform Team
+```
+
+Then use it in any page:
+
+```markdown
+This site is maintained by {{ owner }}.
+```
+
+The plugin also exposes `config`, `page`, `files`, and `navigation` to your
+Markdown. A page can define its own values in a YAML front matter block at
+the top of the file. When the page must show a literal `{{` or `}}`, wrap
+that text in `{% raw %}` and `{% endraw %}`.
+
+### Preview and Rebuild
+
+1. Run `uv run mkdocs serve` for a live preview that reloads on every save. This preview has no sign-in step.
+2. Run `uv run mkdocs build` after each round of edits. The Flask server reads `site/` and does not rebuild the docs.
+
+The build runs the hooks in `app/mkdocs_msal_auth/hooks.py` through
+`mkdocs-simple-hooks`. The hooks read `extra.auth` and pass its values to the
+theme templates. They do not change your page Markdown.
+
 ## Development
 
 ```bash
@@ -176,6 +255,7 @@ site. An unauthenticated request for `/` must redirect to `/auth/login`.
 ├── AGENTS.md                   agent guidance, the single source of truth
 ├── CLAUDE.md                   pointer to AGENTS.md
 ├── Dockerfile                  builds site/ then serves it with Gunicorn
+├── LICENSE                     MIT license
 ├── mkdocs.yml                  MkDocs config and the extra.auth policy
 ├── pyproject.toml              dependencies and tool config
 └── .python-version             pinned Python version
@@ -189,4 +269,4 @@ are not tracked by git.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE) for the full text.
