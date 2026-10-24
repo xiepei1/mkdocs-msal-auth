@@ -11,18 +11,36 @@ requires-python = ">=3.9"
 dependencies = [
   "flask",
   "gunicorn",
-  "mkdocs",
-  "mkdocs-macros-plugin",
-  "mkdocs-material",
-  "mkdocs-simple-hooks",
   "msal",
   "python-dotenv",
   "pyyaml",
   "requests",
+  # Docs builder. Pinned to the MkDocs line the existing docs were written
+  # against. Kept in runtime deps because the Docker image builds site/ at
+  # image build time.
+  "mkdocs==1.6.1",
+  "mkdocs-material",
+  "mkdocs-macros-plugin",
+  "mkdocs-simple-hooks",
 ]
 
 [tool.setuptools.packages.find]
 include = ["src*"]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "ruff",
+]
+
+[tool.uv]
+# Application, not an installable library: `uv sync` installs dependencies
+# only. The code runs from the repo root (`python -m src.webapp.server`).
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 88

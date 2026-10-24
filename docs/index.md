@@ -8,7 +8,7 @@ This site demonstrates a documentation platform built with three components:
 
 ## What You Get
 
-- Familiar MkDocs authoring workflow
+- Familiar Markdown authoring workflow
 - Simple Flask hosting model for static output
 - Enterprise sign-in with Microsoft identity platform
 - Optional allow-lists for domains and individual email accounts
@@ -19,7 +19,7 @@ This site demonstrates a documentation platform built with three components:
 2. Flask checks whether the user already has a valid session.
 3. If not authenticated, user is redirected to `/auth/login`.
 4. Entra ID completes login and redirects to `/auth/authorized`.
-5. Flask validates identity and stores user email in session.
+5. Flask checks identity and stores user email in session.
 6. Flask serves the requested static page from `site/`.
 
 ## Configuration Summary

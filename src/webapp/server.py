@@ -5,8 +5,12 @@ import os
 from pathlib import Path
 from typing import Any
 
+import msal
+import requests
+from dotenv import load_dotenv
 from flask import (
     Flask,
+    abort,
     jsonify,
     redirect,
     request,
@@ -14,10 +18,6 @@ from flask import (
     session,
     url_for,
 )
-
-from dotenv import load_dotenv
-import msal
-import requests
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 try:
@@ -91,8 +91,8 @@ def _default_auth_config() -> dict[str, Any]:
 def _load_auth_config_from_mkdocs() -> None:
     """Load auth settings from ``mkdocs.yml`` when present.
 
-    The function keeps default values when the config file, YAML parser,
-    or ``extra.auth`` section is unavailable.
+    The function keeps the current values when the config file, the YAML
+    parser, or the ``extra.auth`` section is unavailable or malformed.
     """
     global AUTH_ENABLED, ALLOWED_DOMAINS, ALLOWED_EMAILS
 
@@ -106,7 +106,13 @@ def _load_auth_config_from_mkdocs() -> None:
         return
 
     auth_config = _default_auth_config()
-    auth_config.update(mkdocs_config.get('extra', {}).get('auth', {}) or {})
+    extra = mkdocs_config.get('extra')
+    auth_section = extra.get('auth') if isinstance(extra, dict) else None
+    # A bare `extra:`, or an `auth:` holding a scalar, parses to None or a
+    # non-mapping. Treat either as "no override" so a partially edited
+    # mkdocs.yml cannot stop the process from importing.
+    if isinstance(auth_section, dict):
+        auth_config.update(auth_section)
     AUTH_ENABLED = bool(auth_config['enabled'])
     ALLOWED_DOMAINS = auth_config['allowed_domains'] or []
     ALLOWED_EMAILS = auth_config['allowed_emails'] or []
@@ -297,13 +303,28 @@ def serve_site(path):
         return redirect('/auth/login')
 
     requested_path = SITE_DIR / path
-    if not requested_path.exists():
+    # A directory is not a servable file. MkDocs emits directory URLs
+    # (setup/index.html served at /setup/), so fall through to the
+    # index.html resolution instead of handing the directory to
+    # send_from_directory.
+    if not requested_path.exists() or requested_path.is_dir():
         if (SITE_DIR / f"{path}.html").exists():
             path = f"{path}.html"
-        elif (SITE_DIR / path / "index.html").exists():
-            path = f"{path}/index.html"
+        else:
+            index_candidate = f"{path.rstrip('/')}/index.html"
+            if (SITE_DIR / index_candidate).exists():
+                path = index_candidate
 
-    return send_from_directory(SITE_DIR, path)
+    if (SITE_DIR / path).is_file():
+        return send_from_directory(SITE_DIR, path)
+
+    # MkDocs writes site/404.html on every build. Serve that page for a
+    # path with no generated file so the site's own not-found page is used
+    # instead of the bare Flask error.
+    if (SITE_DIR / '404.html').is_file():
+        return send_from_directory(SITE_DIR, '404.html'), 404
+
+    abort(404)
 
 
 if __name__ == '__main__':

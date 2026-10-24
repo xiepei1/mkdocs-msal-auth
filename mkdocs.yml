@@ -1,5 +1,5 @@
 site_name: MkDocs with Entra ID Authentication
-site_description: MkDocs static docs served by Flask with Microsoft Entra ID access control
+site_description: MkDocs static docs served by Flask with Entra ID access control
 site_author: Your Name
 
 theme:
@@ -23,7 +23,7 @@ plugins:
       hooks:
         on_page_markdown: "src.mkdocs_msal_auth.hooks:on_page_markdown"
         on_pre_build: "src.mkdocs_msal_auth.hooks:on_pre_build"
-        on_pre_template: "src.mkdocs_msal_auth.hooks:on_pre_template"
+        on_template_context: "src.mkdocs_msal_auth.hooks:on_template_context"
 
 extra:
   generator: false

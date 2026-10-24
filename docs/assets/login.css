@@ -1,0 +1,37 @@
+/* Layout and colors for the static login page. */
+.login-container {
+  text-align: center;
+  margin: 100px auto;
+  padding: 20px;
+  max-width: 400px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.login-error {
+  margin-top: 20px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid #c0392b;
+  background-color: #fdecea;
+  color: #c0392b;
+  font-size: 14px;
+  text-align: left;
+}
+
+.md-button--primary {
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 4px;
+  background-color: #2f2f2f;
+  color: #fff;
+  font-weight: 500;
+  border: 1px solid #2f2f2f;
+  text-decoration: none;
+  transition: opacity 0.2s, box-shadow 0.3s;
+}
+
+.md-button--primary:hover {
+  opacity: 0.9;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
