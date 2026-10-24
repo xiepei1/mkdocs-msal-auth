@@ -24,4 +24,4 @@ ENV PYTHONPATH=/app
 EXPOSE 5000
 
 # Run the server using a production-grade WSGI server
-CMD ["/app/.venv/bin/gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "src.webapp.wsgi:app"]
+CMD ["/app/.venv/bin/gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "app.webapp.wsgi:app"]

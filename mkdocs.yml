@@ -21,9 +21,9 @@ plugins:
   - macros
   - mkdocs-simple-hooks:
       hooks:
-        on_page_markdown: "src.mkdocs_msal_auth.hooks:on_page_markdown"
-        on_pre_build: "src.mkdocs_msal_auth.hooks:on_pre_build"
-        on_template_context: "src.mkdocs_msal_auth.hooks:on_template_context"
+        on_page_markdown: "app.mkdocs_msal_auth.hooks:on_page_markdown"
+        on_pre_build: "app.mkdocs_msal_auth.hooks:on_pre_build"
+        on_template_context: "app.mkdocs_msal_auth.hooks:on_template_context"
 
 extra:
   generator: false

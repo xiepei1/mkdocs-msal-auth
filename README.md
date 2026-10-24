@@ -46,7 +46,7 @@ uv run mkdocs build
 4. Start local server:
 
 ```bash
-uv run python -m src.webapp.server
+uv run python -m app.webapp.server
 ```
 
 5. Open `http://localhost:5000`.
@@ -72,7 +72,7 @@ exact versions. Run `uv sync` after pulling changes. Add a dependency with
 Use Gunicorn with the WSGI entrypoint:
 
 ```bash
-.venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 3 src.webapp.wsgi:app
+.venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 3 app.webapp.wsgi:app
 ```
 
 Optional hardening:
@@ -139,15 +139,8 @@ image build time.
 
 ## Smoke Check
 
-Run:
-
-```bash
-python3 scripts/smoke_token.py
-```
-
-This checks that the required Entra-related environment variables are present
-and prints the resolved authority. It is the one check that needs real
-credentials.
+The fastest way to see the auth flow is to start the server and open the
+site. An unauthenticated request for `/` must redirect to `/auth/login`.
 
 ## Source Layout
 
@@ -157,19 +150,17 @@ credentials.
 ├── .github/
 │   ├── instructions/           pointer to AGENTS.md
 │   └── workflows/ci.yml        lint, test, and build on every push
-├── docs/                       Markdown that MkDocs builds
-│   ├── assets/                 login page styles and error script
-│   ├── index.md
-│   ├── login.md
-│   └── setup.md
-├── scripts/
-│   └── smoke_token.py          reads env vars and prints the authority
-├── src/
+├── app/                        all Python code
 │   ├── mkdocs_msal_auth/
 │   │   └── hooks.py            MkDocs build hooks for auth settings
 │   └── webapp/
 │       ├── server.py           Flask app and Entra auth flow
 │       └── wsgi.py             production WSGI entrypoint
+├── docs/                       Markdown that MkDocs builds
+│   ├── assets/                 login page styles and error script
+│   ├── index.md
+│   ├── login.md
+│   └── setup.md
 ├── tests/                      pytest suite, no network and no credentials
 │   ├── conftest.py             fixtures and fakes at the MSAL and Graph edge
 │   ├── test_auth_policy.py     allow-list and exempt-path rules
@@ -184,8 +175,8 @@ credentials.
 └── .python-version             pinned Python version
 ```
 
-The Flask app lives under `src/webapp/`. The MkDocs build hooks live
-under `src/mkdocs_msal_auth/`. Docs content lives under `docs/`. Tests
+The Flask app lives under `app/webapp/`. The MkDocs build hooks live
+under `app/mkdocs_msal_auth/`. Docs content lives under `docs/`. Tests
 live under `tests/` and never touch the network. Files under `.cache/`,
 `.pytest_cache/`, `.ruff_cache/`, `site/`, and `.venv/` are generated and
 are not tracked by git.

@@ -19,7 +19,7 @@ def server():
     leaves ``CLIENT_APP`` as ``None``; tests that need MSAL inject a fake
     client explicitly.
     """
-    return importlib.import_module('src.webapp.server')
+    return importlib.import_module('app.webapp.server')
 
 
 @pytest.fixture(autouse=True)

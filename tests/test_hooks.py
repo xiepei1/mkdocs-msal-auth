@@ -10,7 +10,7 @@ import logging
 
 import pytest
 
-from src.mkdocs_msal_auth import hooks
+from app.mkdocs_msal_auth import hooks
 
 
 @pytest.fixture(autouse=True)

@@ -79,11 +79,8 @@ Notes:
 # Build the docs site
 uv run mkdocs build
 
-# Optional check of the env config
-python3 scripts/smoke_token.py
-
 # Run the server
-uv run python -m src.webapp.server
+uv run python -m app.webapp.server
 ```
 
 The server runs on http://localhost:5000 by default.
@@ -92,16 +89,14 @@ The server runs on http://localhost:5000 by default.
 
 ```
 .
-├── docs/                   Markdown that MkDocs builds
-│   └── assets/             login page styles and error script
-├── scripts/
-│   └── smoke_token.py      reads env vars and prints the authority
-├── src/
+├── app/                    all Python code
 │   ├── mkdocs_msal_auth/
 │   │   └── hooks.py        MkDocs build hooks for auth settings
 │   └── webapp/
 │       ├── server.py       Flask app and Entra auth flow
 │       └── wsgi.py         production WSGI entrypoint
+├── docs/                   Markdown that MkDocs builds
+│   └── assets/             login page styles and error script
 ├── tests/                  pytest suite, no network and no credentials
 ├── AGENTS.md               agent guidance, the single source of truth
 ├── Dockerfile              builds site/ then serves it with Gunicorn
@@ -109,14 +104,14 @@ The server runs on http://localhost:5000 by default.
 └── pyproject.toml          dependencies and tool config
 ```
 
-Change auth behavior in `src/webapp/server.py`. Change the allow-lists
+Change auth behavior in `app/webapp/server.py`. Change the allow-lists
 in the `extra.auth` section of `mkdocs.yml`. Change dependencies in
 `pyproject.toml`, then run `uv sync`.
 
 For production, use Gunicorn from the project virtualenv:
 
 ```bash
-.venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 3 src.webapp.wsgi:app
+.venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 3 app.webapp.wsgi:app
 ```
 
 ## Deployment
@@ -148,7 +143,7 @@ Any platform that can run a WSGI server works. It needs to:
 
 1. Run `uv sync --frozen --no-dev` to install production dependencies.
 2. Run `uv run mkdocs build` to generate `site/`.
-3. Start Gunicorn on `src.webapp.wsgi:app`.
+3. Start Gunicorn on `app.webapp.wsgi:app`.
 
 Pass the same environment variables listed above as platform secrets.
 

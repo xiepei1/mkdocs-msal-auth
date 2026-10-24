@@ -7,7 +7,6 @@
       "Bash(uv run pytest*)",
       "Bash(uv run ruff*)",
       "Bash(uv run mkdocs*)",
-      "Bash(python3 scripts/smoke_token.py)",
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)"

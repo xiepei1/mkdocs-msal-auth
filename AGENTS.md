@@ -6,8 +6,8 @@ them via Flask with Microsoft Entra ID (MSAL) authentication.
 ## Start Here
 
 - Read project overview and setup: [README.md](README.md), [docs/setup.md](docs/setup.md)
-- Auth and serving entrypoint: [src/webapp/server.py](src/webapp/server.py)
-- MkDocs build hooks: [src/mkdocs_msal_auth/hooks.py](src/mkdocs_msal_auth/hooks.py)
+- Auth and serving entrypoint: [app/webapp/server.py](app/webapp/server.py)
+- MkDocs build hooks: [app/mkdocs_msal_auth/hooks.py](app/mkdocs_msal_auth/hooks.py)
 - Auth policy tests, which document the security contract: [tests/](tests/)
 
 ## Common Commands
@@ -21,7 +21,7 @@ uv run pytest           # run the test suite
 uv run ruff check .     # lint
 uv run mkdocs build     # build docs into site/
 uv run mkdocs serve     # preview docs
-uv run python -m src.webapp.server
+uv run python -m app.webapp.server
 ```
 
 Tests need no Entra ID credentials and make no network calls. MSAL and
@@ -60,9 +60,7 @@ Run all of these after any auth or config change.
 1. `uv run pytest` proves the auth behavior still holds.
 2. `uv run ruff check .` lints the tree.
 3. `uv run mkdocs build --strict` proves docs compile.
-4. `python3 scripts/smoke_token.py` checks env wiring. It needs real
-   credentials and is the only step that cannot run without them.
-5. `uv run python -m src.webapp.server` to see the login redirect and the
+4. `uv run python -m app.webapp.server` to see the login redirect and the
    callback behavior for yourself.
 
 ## Known Pitfalls
@@ -71,7 +69,7 @@ Run all of these after any auth or config change.
   returns 500 instead of redirecting.
 - `AUTHORITY` defaults to `https://login.microsoftonline.com/<TENANT_ID>`
   when you do not set it.
-- The auth exemptions in `src/webapp/server.py` (`AUTH_PATHS_EXEMPT`) are
+- The auth exemptions in `app/webapp/server.py` (`AUTH_PATHS_EXEMPT`) are
   security-sensitive. Review changes to them with care.
 - `AUTH_PATHS_EXEMPT` matches by prefix, so it is looser than it looks.
   `/auth` exempts every path that starts with those five characters and
@@ -83,10 +81,10 @@ Run all of these after any auth or config change.
 - MkDocs calls build hooks with `config`, `template_name`, `page` and
   `files` as keyword arguments. A hook that takes them positionally
   raises `TypeError` during `mkdocs build`. When you edit them, match
-  the signatures in `src/mkdocs_msal_auth/hooks.py`.
+  the signatures in `app/mkdocs_msal_auth/hooks.py`.
 - `mkdocs build --strict` turns log warnings into build errors. Keep
   hook logging at info level so a build without Entra credentials still
   succeeds. The docs build does not use those credentials.
-- `mkdocs-simple-hooks` is what runs `src/mkdocs_msal_auth/hooks.py`. If
+- `mkdocs-simple-hooks` is what runs `app/mkdocs_msal_auth/hooks.py`. If
   you remove that plugin, the hooks stop running and nothing in the
   build reports it.

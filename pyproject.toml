@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["src*"]
+include = ["app*"]
 
 [dependency-groups]
 dev = [
@@ -35,7 +35,7 @@ dev = [
 
 [tool.uv]
 # Application, not an installable library: `uv sync` installs dependencies
-# only. The code runs from the repo root (`python -m src.webapp.server`).
+# only. The code runs from the repo root (`python -m app.webapp.server`).
 package = false
 
 [tool.pytest.ini_options]
