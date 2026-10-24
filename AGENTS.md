@@ -74,6 +74,11 @@ Run all of these after any auth or config change.
   docs. A fixed fallback is a public signing key, so anyone can forge
   `session['user']`. The test suite sets a throwaway value in
   `tests/conftest.py`.
+- MSAL reserves `openid`, `profile` and `offline_access` and adds them
+  to every request. When the caller passes any of them, MSAL raises
+  `ValueError`. Keep `SCOPES` in `app/webapp/server.py` free of those
+  three. `tests/conftest.py` enforces the same rule in the fake, so a
+  regression fails the suite instead of passing it.
 - The auth exemptions in `app/webapp/server.py` (`AUTH_PATHS_EXEMPT`) are
   security-sensitive. Review changes to them with care. `_is_exempt_path`
   normalizes the request path and matches each entry on a path-segment

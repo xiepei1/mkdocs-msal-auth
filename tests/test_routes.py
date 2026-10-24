@@ -163,8 +163,48 @@ def test_login_redirects_to_authority(client, server, fake_msal):
     # The redirect URI is production's contract with Entra; it must be the
     # absolute callback URL or the token exchange cannot complete.
     assert 'redirect_uri=http://localhost/auth/authorized' in location
-    for scope in ('openid', 'profile', 'email', 'User.Read'):
-        assert scope in location
+    # The app asks for the application scopes it needs. MSAL appends the
+    # reserved OIDC scopes to whatever travels on the wire.
+    assert 'email' in location
+    assert 'User.Read' in location
+
+
+def test_scopes_omit_msal_reserved_values(server):
+    """The requested scopes must not carry values MSAL reserves.
+
+    ``msal.application.ClientApplication._decorate_scope`` adds
+    ``openid``, ``profile`` and ``offline_access`` on its own and raises
+    ``ValueError`` when the caller passes any of them. With those values
+    in ``SCOPES``, every call to ``/auth/login`` and
+    ``/auth/authorized`` 500s against a real MSAL client, so the sign-in
+    flow never worked. The fake refuses them too, so this stays fixed.
+    """
+    reserved = frozenset(['openid', 'profile', 'offline_access'])
+
+    assert not reserved & set(server.SCOPES)
+    # The allow-list check reads the email claim, so ask for it.
+    assert 'email' in server.SCOPES
+
+
+def test_authorized_survives_a_token_exchange_that_raises(client, fake_msal):
+    """A token exchange that blows up must not surface as a 500.
+
+    The code, the network, or Microsoft can fail between the redirect and
+    the session. The caller is a browser mid-sign-in, so the only sane
+    answer is the login page with a reason, never a raw server error.
+    """
+    fake = fake_msal()
+
+    def explode(code, scopes, redirect_uri):
+        raise RuntimeError('token endpoint unreachable')
+
+    fake.acquire_token_by_authorization_code = explode
+
+    response = client.get('/auth/authorized?code=abc')
+
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/login/?error=unauthorized')
+    assert client.post('/auth/verify').status_code == 401
 
 
 def test_login_unconfigured_returns_500(client):

@@ -205,6 +205,8 @@ Behavior:
 - If `extra.auth` is missing, MSAL authentication still applies with default behavior.
 - If both lists are empty, any successfully authenticated Entra user is allowed.
 - If either list is populated, user must match one of the allowed domains or emails.
+- The allow-list is applied at sign-in. A user who already holds a session keeps
+  access until that session ends, even after you drop them from the list.
 
 ## Docker
 

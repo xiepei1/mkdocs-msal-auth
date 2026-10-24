@@ -71,10 +71,21 @@ class FakeMsalApp:
     """Stand-in for ``msal.ConfidentialClientApplication``.
 
     The real client performs network I/O, so it is replaced at the MSAL
-    boundary. ``get_authorization_request_url`` echoes the redirect URI
-    it was given into the returned URL, so tests can assert the redirect
-    the browser actually receives rather than asserting on the double.
+    boundary. Two behaviours of the real client are kept, because a
+    double that drops them hides a login that cannot work.
+
+    * ``get_authorization_request_url`` echoes the redirect URI it was
+      given into the returned URL, so tests can assert the redirect the
+      browser actually receives rather than asserting on the double.
+    * Both entry points refuse the scopes MSAL reserves. See
+      ``msal.application.ClientApplication._decorate_scope``: it adds
+      ``openid``, ``profile`` and ``offline_access`` itself and raises
+      ``ValueError`` when the caller passes any of them. A fake that
+      accepts them let ``SCOPES`` carry reserved values straight
+      through the suite while every real call 500s.
     """
+
+    RESERVED_SCOPES = frozenset(['openid', 'profile', 'offline_access'])
 
     def __init__(self, token_result=None):
         """Record the token result to hand back and any token calls made.
@@ -84,6 +95,28 @@ class FakeMsalApp:
         """
         self.token_result = token_result or {}
         self.token_calls = []
+        self.requested_scopes = []
+
+    def _decorate_scopes(self, scopes):
+        """Return the scopes MSAL would put on the wire, or raise like it.
+
+        Args:
+            scopes: Scopes the caller asked for.
+
+        Returns:
+            The caller's scopes plus the reserved set MSAL adds.
+
+        Raises:
+            ValueError: If the caller passed a reserved scope.
+        """
+        self.requested_scopes = list(scopes)
+        overlap = set(scopes) & self.RESERVED_SCOPES
+        if overlap:
+            raise ValueError(
+                'You cannot use any scope value that is reserved: '
+                f'{sorted(overlap)}'
+            )
+        return sorted(set(scopes) | self.RESERVED_SCOPES)
 
     def get_authorization_request_url(self, scopes, redirect_uri):
         """Build a fake authorize URL echoing the redirect URI received.
@@ -94,11 +127,15 @@ class FakeMsalApp:
 
         Returns:
             A URL string the test can assert against.
+
+        Raises:
+            ValueError: If the caller passed a reserved scope.
         """
+        decorated = self._decorate_scopes(scopes)
         return (
             'https://login.microsoftonline.com/common/oauth2/v2.0/authorize'
             f'?redirect_uri={redirect_uri}'
-            f'&scope={" ".join(scopes)}'
+            f'&scope={" ".join(decorated)}'
         )
 
     def acquire_token_by_authorization_code(self, code, scopes, redirect_uri):
@@ -111,11 +148,15 @@ class FakeMsalApp:
 
         Returns:
             The configured token result mapping.
+
+        Raises:
+            ValueError: If the caller passed a reserved scope.
         """
+        decorated = self._decorate_scopes(scopes)
         self.token_calls.append(
             {
                 'code': code,
-                'scopes': scopes,
+                'scopes': decorated,
                 'redirect_uri': redirect_uri,
             }
         )

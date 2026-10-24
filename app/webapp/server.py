@@ -149,8 +149,14 @@ AUTH_PATHS_EXEMPT = [
     '/images',
 ]
 
-# Scopes requested from Microsoft Identity platform
-SCOPES = ['openid', 'profile', 'email', 'User.Read']
+# Scopes requested from Microsoft Identity platform. Ask for application
+# scopes only. MSAL reserves `openid`, `profile` and `offline_access`,
+# adds them itself, and raises ValueError when the caller passes any of
+# them (see ClientApplication._decorate_scope). Listing them here made
+# every call to /auth/login and /auth/authorized fail before a redirect
+# was ever built. `email` is not reserved, and the allow-list check below
+# reads the email claim it produces.
+SCOPES = ['email', 'User.Read']
 
 
 def _is_email_allowed(email: str) -> bool:
@@ -231,11 +237,18 @@ def authorized():
         return redirect('/login/?error=no_code')
 
     redirect_uri = url_for('authorized', _external=True)
-    result = CLIENT_APP.acquire_token_by_authorization_code(
-        code,
-        scopes=SCOPES,
-        redirect_uri=redirect_uri,
-    )
+    try:
+        result = CLIENT_APP.acquire_token_by_authorization_code(
+            code,
+            scopes=SCOPES,
+            redirect_uri=redirect_uri,
+        )
+    except Exception:
+        # The code can be stale, the network can drop, Microsoft can be
+        # down. The caller is a browser mid sign-in, so answer on the
+        # login page rather than with a raw server error.
+        app.logger.exception('Token exchange during sign-in failed')
+        return redirect('/login/?error=unauthorized')
 
     if 'access_token' in result:
         # Try to extract a user identifier from the id token claims
