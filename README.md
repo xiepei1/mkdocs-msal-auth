@@ -1,5 +1,11 @@
 # Docs + Flask + Microsoft Entra ID Authentication
 
+[![CI](https://github.com/xiepei1/mkdocs-msal-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/xiepei1/mkdocs-msal-auth/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![MkDocs](https://img.shields.io/badge/MkDocs-1.6.1-000000)](https://www.mkdocs.org/)
+[![uv](https://img.shields.io/badge/deps-uv-DE5FE9?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+[![License](https://img.shields.io/badge/License-MIT-green?logo=open-source-initiative&logoColor=white)](#license)
+
 This project builds documentation with [MkDocs](https://www.mkdocs.org/) and
 the [Material](https://squidfunk.github.io/mkdocs-material/) theme.
 It serves the generated static site through Flask. Access is protected with
