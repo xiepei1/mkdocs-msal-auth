@@ -24,8 +24,8 @@ uv run mkdocs serve     # preview docs
 uv run python -m app.webapp.server
 ```
 
-Tests need no Entra ID credentials and make no network calls. MSAL and
-Microsoft Graph are replaced with fakes at their network boundary.
+Tests need no Entra ID credentials and make no network calls. MSAL is
+replaced with a fake at its network boundary.
 
 ## Runtime Configuration
 
@@ -79,6 +79,11 @@ Run all of these after any auth or config change.
   `ValueError`. Keep `SCOPES` in `app/webapp/server.py` free of those
   three. `tests/conftest.py` enforces the same rule in the fake, so a
   regression fails the suite instead of passing it.
+- This app signs a user in and reads an email. It does not call
+  Microsoft Graph, so `SCOPES` holds `email` only. Do not gate the
+  sign-in on `access_token`. Identity lives in `id_token_claims`, and
+  the token endpoint can answer identity-only requests with just an id
+  token.
 - The auth exemptions in `app/webapp/server.py` (`AUTH_PATHS_EXEMPT`) are
   security-sensitive. Review changes to them with care. `_is_exempt_path`
   normalizes the request path and matches each entry on a path-segment

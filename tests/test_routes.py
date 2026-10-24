@@ -1,7 +1,7 @@
 """Route-level tests for the Flask auth flow.
 
-MSAL and Microsoft Graph are replaced at their network boundary. The
-assertions target what the app returns to the client, not the doubles.
+MSAL is replaced at its network boundary. The assertions target what the
+app returns to the client, not the double.
 """
 
 
@@ -163,10 +163,11 @@ def test_login_redirects_to_authority(client, server, fake_msal):
     # The redirect URI is production's contract with Entra; it must be the
     # absolute callback URL or the token exchange cannot complete.
     assert 'redirect_uri=http://localhost/auth/authorized' in location
-    # The app asks for the application scopes it needs. MSAL appends the
-    # reserved OIDC scopes to whatever travels on the wire.
+    # The app asks for the email claim and nothing else. MSAL appends the
+    # reserved OIDC scopes to whatever travels on the wire, so the wire
+    # shows `email offline_access openid profile` and no Graph scope.
     assert 'email' in location
-    assert 'User.Read' in location
+    assert 'User.Read' not in location
 
 
 def test_scopes_omit_msal_reserved_values(server):
@@ -184,6 +185,17 @@ def test_scopes_omit_msal_reserved_values(server):
     assert not reserved & set(server.SCOPES)
     # The allow-list check reads the email claim, so ask for it.
     assert 'email' in server.SCOPES
+
+
+def test_scopes_ask_for_identity_only(server):
+    """Sign-in needs an identity, not a Graph permission.
+
+    ``User.Read`` is a Microsoft Graph delegated permission. Nothing in
+    this app calls Graph any more, and asking for a resource scope would
+    both widen the consent prompt and change what the token endpoint
+    returns. Keep the list down to what the allow-list check reads.
+    """
+    assert server.SCOPES == ['email']
 
 
 def test_authorized_survives_a_token_exchange_that_raises(client, fake_msal):
@@ -295,24 +307,24 @@ def test_authorized_denied_by_allowlist_stays_logged_out(
     assert client.post('/auth/verify').status_code == 401
 
 
-def test_authorized_falls_back_to_graph_for_email(client, fake_msal, fake_graph):
-    """When claims carry no email, the Graph profile supplies one."""
-    fake_msal({'access_token': 'token-123', 'id_token_claims': {}})
-    graph = fake_graph({'mail': 'dev@example.com'})
+def test_authorized_signs_in_without_an_access_token(client, fake_msal):
+    """Identity alone is enough to finish sign-in.
+
+    With identity-only scopes the token endpoint can answer with just an
+    id token. Gating on ``access_token`` would bounce every one of those
+    sign-ins to ``unauthorized``, so the gate reads the claims instead.
+    """
+    fake_msal({'id_token_claims': {'email': 'dev@example.com'}})
 
     response = client.get('/auth/authorized?code=abc')
 
     assert response.status_code == 302
     assert client.post('/auth/verify').get_json()['email'] == 'dev@example.com'
-    assert graph.calls[0]['url'] == 'https://graph.microsoft.com/v1.0/me'
 
 
-def test_authorized_without_any_email_reports_no_email(
-    client, fake_msal, fake_graph
-):
-    """No email in claims or Graph means the identity cannot be checked."""
-    fake_msal({'access_token': 'token-123', 'id_token_claims': {}})
-    fake_graph({}, ok=False)
+def test_authorized_without_any_email_reports_no_email(client, fake_msal):
+    """Claims with no usable identifier mean the user cannot be checked."""
+    fake_msal({'id_token_claims': {}})
 
     response = client.get('/auth/authorized?code=abc')
 
@@ -322,7 +334,7 @@ def test_authorized_without_any_email_reports_no_email(
 
 
 def test_authorized_token_failure_stays_logged_out(client, fake_msal):
-    """A token response without an access token grants no session."""
+    """A token response with no id token grants no session."""
     fake_msal({'error': 'invalid_grant'})
 
     response = client.get('/auth/authorized?code=abc')

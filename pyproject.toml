@@ -14,7 +14,6 @@ dependencies = [
   "msal",
   "python-dotenv",
   "pyyaml",
-  "requests",
   # Docs builder. Pinned to the MkDocs line the existing docs were written
   # against. Kept in runtime deps because the Docker image builds site/ at
   # image build time.

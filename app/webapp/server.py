@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import msal
-import requests
 from dotenv import load_dotenv
 from flask import (
     Flask,
@@ -149,21 +148,22 @@ AUTH_PATHS_EXEMPT = [
     '/images',
 ]
 
-# Scopes requested from Microsoft Identity platform. Ask for application
-# scopes only. MSAL reserves `openid`, `profile` and `offline_access`,
-# adds them itself, and raises ValueError when the caller passes any of
-# them (see ClientApplication._decorate_scope). Listing them here made
-# every call to /auth/login and /auth/authorized fail before a redirect
-# was ever built. `email` is not reserved, and the allow-list check below
-# reads the email claim it produces.
-SCOPES = ['email', 'User.Read']
+# Scopes requested from Microsoft Identity platform. This app only reads
+# the caller's identity, so it asks for `email` alone. MSAL reserves
+# `openid`, `profile` and `offline_access`, adds them itself, and raises
+# ValueError when the caller passes any of them (see
+# ClientApplication._decorate_scope). Those two facts are why this list
+# must stay short: `preferred_username` and `upn` already arrive with
+# `profile` and `openid`, and a resource scope such as `User.Read` would
+# buy a Graph permission this app no longer uses.
+SCOPES = ['email']
 
 
 def _is_email_allowed(email: str) -> bool:
     """Return whether the authenticated email passes allow-list checks.
 
     Args:
-        email: User email resolved from Entra ID or Microsoft Graph.
+        email: User email resolved from the Entra ID token claims.
 
     Returns:
         ``True`` when access should be granted.
@@ -250,39 +250,27 @@ def authorized():
         app.logger.exception('Token exchange during sign-in failed')
         return redirect('/login/?error=unauthorized')
 
-    if 'access_token' in result:
-        # Try to extract a user identifier from the id token claims
-        claims = result.get('id_token_claims', {})
-        email = (
-            claims.get('email')
-            or claims.get('preferred_username')
-            or claims.get('upn')
-        )
+    # Identity lives in the id token, not in an access token. Do not gate
+    # on `access_token`: with identity-only scopes the token endpoint can
+    # answer with just an id token, and sign-in must still complete.
+    claims = result.get('id_token_claims')
+    if claims is None:
+        # No id token at all means the exchange itself failed.
+        return redirect('/login/?error=unauthorized')
 
-        # Fallback: attempt to call Graph for user profile
-        if not email:
-            try:
-                graph_resp = requests.get(
-                    'https://graph.microsoft.com/v1.0/me',
-                    headers={'Authorization': f"Bearer {result['access_token']}"},
-                    timeout=5,
-                )
-                if graph_resp.ok:
-                    graph_data = graph_resp.json()
-                    email = graph_data.get('mail') or graph_data.get(
-                        'userPrincipalName'
-                    )
-            except Exception:
-                pass
+    email = (
+        claims.get('email')
+        or claims.get('preferred_username')
+        or claims.get('upn')
+    )
+    if not email:
+        return redirect('/login/?error=no_email')
 
-        if not email:
-            return redirect('/login/?error=no_email')
+    if not _is_email_allowed(email):
+        return redirect('/login/?error=unauthorized')
 
-        if _is_email_allowed(email):
-            session['user'] = email
-            return redirect('/')
-
-    return redirect('/login/?error=unauthorized')
+    session['user'] = email
+    return redirect('/')
 
 
 @app.route('/auth/verify', methods=['POST'])

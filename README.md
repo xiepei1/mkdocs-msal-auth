@@ -180,7 +180,10 @@ In Microsoft Entra admin center:
 1. Register an application.
 2. Add a Web redirect URI: `http://localhost:5000/auth/authorized` (or your production URL).
 3. Create a client secret.
-4. Grant delegated permission `User.Read` (Microsoft Graph).
+
+The app signs users in with OpenID Connect and reads the email claim. It
+does not call Microsoft Graph, so it needs no Graph permission. A new
+registration lists `User.Read` by default, and you can remove that one.
 
 ## Auth Policy Config
 
@@ -249,7 +252,7 @@ site. An unauthenticated request for `/` must redirect to `/auth/login`.
 │   ├── login.md
 │   └── setup.md
 ├── tests/                      pytest suite, no network and no credentials
-│   ├── conftest.py             fixtures and fakes at the MSAL and Graph edge
+│   ├── conftest.py             fixtures and fakes at the MSAL edge
 │   ├── test_auth_policy.py     allow-list and exempt-path rules
 │   ├── test_config.py          env and mkdocs.yml loading
 │   ├── test_hooks.py           MkDocs build hook contracts

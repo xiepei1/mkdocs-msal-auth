@@ -32,7 +32,9 @@ from `uv.lock`. Run it again after every pull.
    - Local: `http://localhost:5000/auth/authorized`
    - Production: `https://yourdocs.example.com/auth/authorized`
 4. In Certificates & secrets, create a client secret.
-5. In API permissions, add delegated permission `User.Read` for Microsoft Graph.
+5. In API permissions, remove the `User.Read` entry. The app signs users
+   in with OpenID Connect and reads the email claim. It does not call
+   Microsoft Graph.
 6. Capture these values:
    - Application (client) ID
    - Directory (tenant) ID

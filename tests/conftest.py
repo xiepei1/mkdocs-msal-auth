@@ -163,59 +163,6 @@ class FakeMsalApp:
         return self.token_result
 
 
-class FakeGraphResponse:
-    """Stand-in for a ``requests`` response from Microsoft Graph."""
-
-    def __init__(self, payload=None, ok=True):
-        """Set the JSON payload and the response status flag.
-
-        Args:
-            payload: Mapping to return from ``json()``.
-            ok: Whether the response counts as successful.
-        """
-        self._payload = payload if payload is not None else {}
-        self.ok = ok
-
-    def json(self):
-        """Return the configured JSON payload.
-
-        Returns:
-            The payload mapping.
-        """
-        return self._payload
-
-
-class FakeRequests:
-    """Replace ``requests`` on the server module for one test.
-
-    Scoped to the module under test so the real ``requests`` package
-    keeps working everywhere else.
-    """
-
-    def __init__(self, response):
-        """Hold the response to return and record every call made.
-
-        Args:
-            response: Object to return from ``get()``.
-        """
-        self._response = response
-        self.calls = []
-
-    def get(self, url, headers=None, timeout=None):
-        """Return the canned response and record the request made.
-
-        Args:
-            url: Requested URL.
-            headers: Request headers sent.
-            timeout: Timeout in seconds the caller allowed.
-
-        Returns:
-            The canned response object.
-        """
-        self.calls.append({'url': url, 'headers': headers, 'timeout': timeout})
-        return self._response
-
-
 @pytest.fixture
 def fake_msal(server, monkeypatch):
     """Install a fake MSAL client and hand it back for configuration."""
@@ -224,17 +171,5 @@ def fake_msal(server, monkeypatch):
         app = FakeMsalApp(token_result=token_result)
         monkeypatch.setattr(server, 'CLIENT_APP', app)
         return app
-
-    return install
-
-
-@pytest.fixture
-def fake_graph(server, monkeypatch):
-    """Install a fake Graph HTTP client returning ``payload`` as JSON."""
-
-    def install(payload=None, ok=True):
-        fake = FakeRequests(FakeGraphResponse(payload, ok=ok))
-        monkeypatch.setattr(server, 'requests', fake)
-        return fake
 
     return install
