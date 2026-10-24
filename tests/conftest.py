@@ -7,8 +7,14 @@ no network calls.
 """
 
 import importlib
+import os
 
 import pytest
+
+# AGENTS.md declares SECRET_KEY required, and the server refuses to start
+# without one because the key signs the session cookie that grants access.
+# This is a throwaway test value, not a credential.
+os.environ.setdefault('SECRET_KEY', 'test-only-session-signing-key')
 
 
 @pytest.fixture(scope='session')

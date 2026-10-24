@@ -2,6 +2,7 @@
 """Flask host for MkDocs static site with Microsoft Entra ID authentication."""
 
 import os
+import posixpath
 from pathlib import Path
 from typing import Any
 
@@ -52,15 +53,21 @@ def _env_bool(name: str, default: bool = False) -> bool:
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = _env_bool('SESSION_COOKIE_SECURE', default=False)
 
-if app.secret_key == 'dev-secret-key':
-    app.logger.warning(
-        'Using default SECRET_KEY. Set SECRET_KEY in environment '
-        'for non-development use.'
+# The session cookie is the access credential for every docs page, and
+# SECRET_KEY is what signs it. A fixed fallback value would let anyone
+# mint `session['user']` and read the site, so refuse to start without a
+# real key instead of warning and running anyway.
+app.secret_key = os.environ.get('SECRET_KEY')
+if not app.secret_key:
+    raise RuntimeError(
+        'SECRET_KEY is not set. It signs the Flask session cookie that '
+        'grants access to the docs, so a missing or public value is an '
+        'authentication bypass. Set SECRET_KEY in the environment '
+        '(see .env.example).'
     )
 
 CLIENT_ID = os.environ.get('CLIENT_ID')
@@ -136,10 +143,10 @@ else:
 AUTH_PATHS_EXEMPT = [
     '/auth',
     '/login',
-    '/assets/',
-    '/javascripts/',
-    '/stylesheets/',
-    '/images/',
+    '/assets',
+    '/javascripts',
+    '/stylesheets',
+    '/images',
 ]
 
 # Scopes requested from Microsoft Identity platform
@@ -158,15 +165,21 @@ def _is_email_allowed(email: str) -> bool:
     if not ALLOWED_DOMAINS and not ALLOWED_EMAILS:
         return True
 
-    if email in ALLOWED_EMAILS:
+    normalized = email.lower()
+    if normalized in {item.lower() for item in ALLOWED_EMAILS}:
         return True
 
-    domain = email.split('@')[-1].lower()
+    domain = normalized.split('@')[-1]
     return domain in {item.lower() for item in ALLOWED_DOMAINS}
 
 
 def _is_exempt_path(path: str) -> bool:
     """Return whether a request path bypasses authentication.
+
+    The path is normalized before matching. Without that, a request for
+    ``/assets/../setup/`` keeps the ``/assets/`` exemption and serves a
+    protected page to an anonymous caller. Prefixes are also matched on
+    a path-segment boundary, so ``/auth`` does not exempt ``/authorize``.
 
     Args:
         path: Request path being evaluated.
@@ -174,7 +187,13 @@ def _is_exempt_path(path: str) -> bool:
     Returns:
         ``True`` when the path is exempt from auth checks.
     """
-    return any(path.startswith(prefix) for prefix in AUTH_PATHS_EXEMPT)
+    normalized = posixpath.normpath(path or '/')
+    if not normalized.startswith('/'):
+        normalized = '/' + normalized
+    return any(
+        normalized == prefix or normalized.startswith(prefix + '/')
+        for prefix in AUTH_PATHS_EXEMPT
+    )
 
 
 @app.route('/auth/login')

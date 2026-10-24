@@ -104,7 +104,9 @@ the link `assets/diagram.png` from `docs/index.md`. It needs the link
 
 Do not place private content under `/auth/`, `/login/`, `/assets/`,
 `/images/`, `/javascripts/`, or `/stylesheets/`. The server serves those
-path prefixes without a login step, so anyone can read that content.
+directories without a login step, so anyone can read that content. This
+covers each directory and its subpaths. A sibling name that only starts
+the same, such as `/authorize/`, stays behind the login step.
 
 ### Reuse Values with Macros
 
@@ -160,10 +162,8 @@ Use Gunicorn with the WSGI entrypoint:
 .venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 3 app.webapp.wsgi:app
 ```
 
-Optional hardening:
-
-- When you serve over HTTPS, set `SESSION_COOKIE_SECURE=true`.
-- Always set a strong `SECRET_KEY`.
+When you serve over HTTPS, set `SESSION_COOKIE_SECURE=true`. That flag
+keeps the session cookie on secure connections only.
 
 ## Required Environment Variables
 
@@ -171,7 +171,7 @@ Optional hardening:
 - `CLIENT_SECRET`: Entra client secret
 - `TENANT_ID`: Entra tenant ID
 - `AUTHORITY` (optional): overrides default `https://login.microsoftonline.com/<TENANT_ID>`
-- `SECRET_KEY`: Flask session signing key
+- `SECRET_KEY`: signs the session cookie. The server refuses to start without it.
 
 ## Entra App Registration
 

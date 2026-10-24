@@ -1,0 +1,18 @@
+# The Dockerfile runs `COPY . .`, so anything listed here stays out of
+# the image. `.env` holds CLIENT_SECRET and must never be copied in.
+
+.env
+.env.*
+.git
+.github
+.claude
+.cache
+.venv
+.pytest_cache
+.ruff_cache
+site/
+tests/
+__pycache__/
+*.pyc
+Dockerfile
+.dockerignore

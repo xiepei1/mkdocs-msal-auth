@@ -69,15 +69,21 @@ Run all of these after any auth or config change.
   returns 500 instead of redirecting.
 - `AUTHORITY` defaults to `https://login.microsoftonline.com/<TENANT_ID>`
   when you do not set it.
+- `SECRET_KEY` is mandatory. The server raises at import without it,
+  because that key signs the session cookie that grants access to the
+  docs. A fixed fallback is a public signing key, so anyone can forge
+  `session['user']`. The test suite sets a throwaway value in
+  `tests/conftest.py`.
 - The auth exemptions in `app/webapp/server.py` (`AUTH_PATHS_EXEMPT`) are
-  security-sensitive. Review changes to them with care.
-- `AUTH_PATHS_EXEMPT` matches by prefix, so it is looser than it looks.
-  `/auth` exempts every path that starts with those five characters and
-  `/login` exempts everything under `/login/`. Anything a future page
-  places at those prefixes is served with no authentication. The tests
-  cover the intended contract, where auth routes and assets are exempt and
-  docs pages are not. They do not pin this looseness on purpose, so that
-  fixing it does not break the suite.
+  security-sensitive. Review changes to them with care. `_is_exempt_path`
+  normalizes the request path and matches each entry on a path-segment
+  boundary. Keep both properties. If you drop the normalization, a
+  request for `/assets/../setup/` reclaims the `/assets/` exemption and
+  serves protected pages to anonymous callers. If you match by raw
+  prefix, `/auth` also exempts `/authorize`.
+- The Dockerfile runs `COPY . .`. `.dockerignore` is what keeps `.env`,
+  which holds `CLIENT_SECRET`, out of the image. Keep it in step with
+  any new local secret file.
 - MkDocs calls build hooks with `config`, `template_name`, `page` and
   `files` as keyword arguments. A hook that takes them positionally
   raises `TypeError` during `mkdocs build`. When you edit them, match

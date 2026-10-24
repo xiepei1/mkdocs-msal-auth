@@ -29,6 +29,41 @@ def test_exempt_asset_is_served_without_session(client):
     assert b'body' in response.data
 
 
+def test_traversal_under_exempt_prefix_does_not_bypass_auth(client):
+    """A `..` path under /assets/ must not serve docs anonymously.
+
+    Regression: the gate matched raw prefixes on the un-normalized path,
+    so `/assets/../setup/index.html` counted as an asset and the
+    protected page came back with no session at all.
+    """
+    response = client.get('/assets/../setup/index.html')
+
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/auth/login')
+
+
+def test_traversal_under_exempt_prefix_serves_content_when_signed_in(
+    signed_in,
+):
+    """After the gate, the same path is just the page it resolves to.
+
+    Normalizing must not deny a signed-in reader a page that exists.
+    """
+    response = signed_in.get('/assets/../setup/index.html')
+
+    assert response.status_code == 200
+    assert b'setup guide' in response.data
+
+
+def test_look_alike_prefix_does_not_bypass_auth(client):
+    """A name that merely starts like an exempt route stays protected."""
+    for path in ('/authorize/', '/login-spoof/', '/assets-backup/x.html'):
+        response = client.get(path)
+
+        assert response.status_code == 302, path
+        assert response.headers['Location'].endswith('/auth/login'), path
+
+
 def test_authenticated_request_serves_content(signed_in):
     """A signed-in user receives the generated docs content."""
     response = signed_in.get('/')
